@@ -1,0 +1,11 @@
+.env
+.env.*
+app.db
+app.db-journal
+app.db-shm
+app.db-wal
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+.pytest_cache/

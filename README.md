@@ -1,36 +1,75 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AI Document Assistant
 
-## Getting Started
+Next.js frontend and FastAPI backend for summarizing and asking questions about PDF documents.
 
-First, run the development server:
+## Run locally
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+Start the API from `backend`:
+
+```powershell
+cd backend
+python -m pip install -r requirements.txt
+python -m uvicorn app.main:app --reload --port 8000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Set `OPENROUTER_API_KEY` and `JWT_SECRET` in `backend/.env`. The frontend reads
+`NEXT_PUBLIC_API_URL` from `.env.local` in the repository root; set it to
+`http://localhost:8000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+In another terminal, start the frontend:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```powershell
+npm install
+npm run dev
+```
 
-## Learn More
+## Deploy for free
 
-To learn more about Next.js, take a look at the following resources:
+The frontend is hosted on Vercel and the API on Render. Both services use this
+GitHub repository. Free-tier limits and availability may change.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 1. Push the repository to GitHub
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Create a GitHub repository and push this project. Do not commit `.env`,
+`.env.local`, or `backend/app.db`; these are ignored by Git.
 
-## Deploy on Vercel
+### 2. Deploy the API on Render
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+In Render, create a **Blueprint** and connect the GitHub repository containing
+`render.yaml`. The blueprint creates the Python web service with `backend` as
+its root directory.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+In the Render service environment, set `OPENROUTER_API_KEY` to your
+OpenRouter key. Optionally set `ADMIN_EMAILS` to comma-separated admin email
+addresses. Render generates `JWT_SECRET` for the service.
+
+After deployment, copy the service URL, for example
+`https://ai-document-assistant-api.onrender.com`.
+
+### 3. Deploy the frontend on Vercel
+
+Import the same GitHub repository into Vercel. Keep the project root at the
+repository root so Vercel detects the Next.js app.
+
+Add the environment variable `NEXT_PUBLIC_API_URL` with the Render service URL
+(no trailing slash), then deploy.
+
+### 4. Allow the Vercel site to call the API
+
+In Render, update `CORS_ORIGINS` to the exact Vercel production origin, for
+example `https://your-project.vercel.app`. For multiple trusted origins, use
+comma-separated URLs. Do not include paths or trailing slashes. Save the
+environment variable and redeploy the API if Render does not deploy it
+automatically.
+
+If you change `NEXT_PUBLIC_API_URL` in Vercel, redeploy the frontend because
+Next.js embeds this public variable during the build.
+
+## Free-tier notes
+
+- Render free web services may sleep when idle, so the first API request after
+  inactivity can be slow.
+- The backend currently uses a local SQLite database. Render's free service
+  does not provide persistent local storage, so accounts and documents can be
+  lost after a restart or redeploy. Use an external database before relying on
+  production data.
