@@ -17,7 +17,6 @@ interface DocumentSidebarProps {
   onNewPdf: () => void;
   onSelectDocument: (documentId: number) => void;
   onDeleteDocument: (documentId: number) => void;
-  onLogout: () => void;
 }
 
 export default function DocumentSidebar({
@@ -30,7 +29,6 @@ export default function DocumentSidebar({
   onNewPdf,
   onSelectDocument,
   onDeleteDocument,
-  onLogout,
 }: DocumentSidebarProps) {
   return (
     <aside className="flex w-full shrink-0 flex-col border-b border-gray-200 bg-white md:min-h-screen md:w-72 md:border-b-0 md:border-r">
@@ -38,13 +36,6 @@ export default function DocumentSidebar({
         <h1 className="text-base font-bold text-gray-900">
           AI Document Assistant
         </h1>
-        <button
-          type="button"
-          onClick={onLogout}
-          className="text-sm font-medium text-gray-500 hover:text-red-600"
-        >
-          Log out
-        </button>
       </div>
 
       <div className="flex items-center justify-between px-4 pb-2 pt-4">

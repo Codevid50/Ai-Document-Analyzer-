@@ -1,6 +1,6 @@
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
 
@@ -31,9 +31,11 @@ def client(monkeypatch, tmp_path):
             session.close()
 
     app.dependency_overrides[get_db] = override_get_db
+    app.state.test_session_factory = testing_session
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
+    del app.state.test_session_factory
     engine.dispose()
 
 
@@ -94,7 +96,7 @@ def test_admin_authentication_and_login_events(client):
     )
     assert disabled_response.status_code == 200
     assert disabled_response.json()["is_active"] is False
-    assert client.get("/documents", headers=regular_headers).status_code == 401
+    assert client.get("/documents", headers=regular_headers).status_code == 400
 
     disabled_login = client.post(
         "/auth/login",
@@ -123,3 +125,44 @@ def test_admin_authentication_and_login_events(client):
         for event in events
     )
     assert all("token" not in event and "password" not in event for event in events)
+
+
+def test_documents_use_anonymous_visitor_workspaces(client):
+    first_visitor = {"X-Visitor-ID": "8edab6a5-e3f2-4de1-8c72-1069f404e9d1"}
+    second_visitor = {"X-Visitor-ID": "3a4561a7-a31a-4655-aea8-1f29d863cc27"}
+
+    assert client.get("/documents").status_code == 400
+    first_response = client.get("/documents", headers=first_visitor)
+    second_response = client.get("/documents", headers=second_visitor)
+
+    assert first_response.status_code == 200
+    assert second_response.status_code == 200
+    assert first_response.json() == []
+    assert second_response.json() == []
+
+    from app.db import Document, User
+
+    first_email = "anonymous-8edab6a5-e3f2-4de1-8c72-1069f404e9d1@visitor.invalid"
+    with client.app.state.test_session_factory() as session:
+        visitor = session.scalar(select(User).where(User.email == first_email))
+        assert visitor is not None
+        session.add(
+            Document(
+                user_id=visitor.id,
+                filename="private.pdf",
+                sha256="a" * 64,
+                text="Private document",
+            )
+        )
+        session.commit()
+
+    first_documents = client.get(
+        "/documents",
+        headers=first_visitor,
+    ).json()
+    assert [item["filename"] for item in first_documents] == ["private.pdf"]
+    assert client.get("/documents", headers=second_visitor).json() == []
+    assert client.get(
+        "/documents",
+        headers={"X-Visitor-ID": "not-a-uuid"},
+    ).status_code == 400

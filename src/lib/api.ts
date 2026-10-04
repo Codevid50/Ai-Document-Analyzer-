@@ -1,24 +1,22 @@
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const DEFAULT_TIMEOUT_MS = 12 * 60 * 1000;
-const UNAUTHORIZED_EVENT = "document-assistant:unauthorized";
 const TOKEN_KEY = "document-assistant-token";
+const VISITOR_ID_KEY = "document-assistant-visitor-id";
 
 export function getStoredToken(): string | null {
   return window.localStorage.getItem(TOKEN_KEY);
 }
 
-export function setStoredToken(token: string): void {
-  window.localStorage.setItem(TOKEN_KEY, token);
-}
+function getVisitorId(): string {
+  const storedVisitorId = window.localStorage.getItem(VISITOR_ID_KEY);
+  if (storedVisitorId) {
+    return storedVisitorId;
+  }
 
-export function clearStoredToken(): void {
-  window.localStorage.removeItem(TOKEN_KEY);
-}
-
-export function addUnauthorizedListener(listener: () => void): () => void {
-  window.addEventListener(UNAUTHORIZED_EVENT, listener);
-  return () => window.removeEventListener(UNAUTHORIZED_EVENT, listener);
+  const visitorId = window.crypto.randomUUID();
+  window.localStorage.setItem(VISITOR_ID_KEY, visitorId);
+  return visitorId;
 }
 
 export async function apiFetch(
@@ -29,14 +27,11 @@ export async function apiFetch(
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
   const headers = new Headers(init.headers);
-  const isAuthenticationRequest =
-    path === "/auth/login" || path === "/auth/register";
+  headers.set("X-Visitor-ID", getVisitorId());
 
-  if (!isAuthenticationRequest) {
-    const token = getStoredToken();
-    if (token) {
-      headers.set("Authorization", `Bearer ${token}`);
-    }
+  const token = getStoredToken();
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
   }
 
   try {
@@ -45,11 +40,6 @@ export async function apiFetch(
       headers,
       signal: controller.signal,
     });
-
-    if (response.status === 401) {
-      clearStoredToken();
-      window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
-    }
 
     return response;
   } catch (error) {

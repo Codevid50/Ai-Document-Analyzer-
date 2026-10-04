@@ -1,21 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
-import AuthForm from "@/components/AuthForm";
 import AskQuestion from "@/components/AskQuestion";
 import DocumentSidebar from "@/components/DocumentSidebar";
 import FileUpload from "@/components/FileUpload";
 import LoadingBar from "@/components/LoadingBar";
 import Summary from "@/components/Summary";
-import {
-  addUnauthorizedListener,
-  apiFetch,
-  clearStoredToken,
-  getApiErrorMessage,
-  getStoredToken,
-  setStoredToken,
-} from "@/lib/api";
+import { apiFetch, getApiErrorMessage } from "@/lib/api";
 
 interface SummaryData {
   summary: string;
@@ -44,10 +35,6 @@ interface SavedDocumentResponse {
 }
 
 export default function Home() {
-  const [token, setToken] = useState<string | null>(null);
-  const [authInitialized, setAuthInitialized] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [adminStatusError, setAdminStatusError] = useState("");
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [selectedDocumentId, setSelectedDocumentId] = useState<number | null>(
     null,
@@ -65,81 +52,10 @@ export default function Home() {
   const [workspaceError, setWorkspaceError] = useState("");
   const [sidebarError, setSidebarError] = useState("");
   const activeDocumentId = useRef<number | null>(null);
-  const sessionVersion = useRef(0);
-
-  useEffect(() => {
-    const removeUnauthorizedListener = addUnauthorizedListener(() => {
-      sessionVersion.current += 1;
-      activeDocumentId.current = null;
-      setToken(null);
-      setIsAdmin(false);
-      setAdminStatusError("");
-      setDocuments([]);
-      setSelectedDocumentId(null);
-      setSelectedFile(null);
-      setSummaryData(null);
-      setMessages([]);
-      setWorkspaceError("");
-      setSidebarError("");
-      setIsLoadingDocuments(false);
-      setIsLoadingDocument(false);
-      setIsSummarizing(false);
-      setIsAsking(false);
-    });
-    const initializationTimer = window.setTimeout(() => {
-      setToken(getStoredToken());
-      setAuthInitialized(true);
-    }, 0);
-
-    return () => {
-      window.clearTimeout(initializationTimer);
-      removeUnauthorizedListener();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!authInitialized || !token) {
-      return;
-    }
-
-    let isCurrent = true;
-    const checkAdminStatus = async () => {
-      setAdminStatusError("");
-      try {
-        const response = await apiFetch("/auth/me");
-        if (!response.ok) {
-          if (response.status !== 401) {
-            setAdminStatusError(
-              await getApiErrorMessage(
-                response,
-                "Unable to check administrator access.",
-              ),
-            );
-          }
-          return;
-        }
-
-        const currentUser: { is_admin: boolean } = await response.json();
-        if (isCurrent) setIsAdmin(currentUser.is_admin);
-      } catch (error: unknown) {
-        if (isCurrent) {
-          setAdminStatusError(
-            error instanceof Error
-              ? error.message
-              : "Unable to check administrator access.",
-          );
-        }
-      }
-    };
-
-    void checkAdminStatus();
-    return () => {
-      isCurrent = false;
-    };
-  }, [authInitialized, token]);
+  const workspaceVersion = useRef(0);
 
   const refreshDocuments = useCallback(async () => {
-    const requestVersion = sessionVersion.current;
+    const requestVersion = workspaceVersion.current;
     setIsLoadingDocuments(true);
     setSidebarError("");
 
@@ -150,28 +66,27 @@ export default function Home() {
           await getApiErrorMessage(response, "Failed to load your PDFs."),
         );
       }
-      if (sessionVersion.current !== requestVersion) return;
+      if (workspaceVersion.current !== requestVersion) return;
       setDocuments((await response.json()) as DocumentItem[]);
     } catch (error: unknown) {
-      if (sessionVersion.current === requestVersion) {
+      if (workspaceVersion.current === requestVersion) {
         setSidebarError(
           error instanceof Error ? error.message : "Failed to load your PDFs.",
         );
       }
     } finally {
-      if (sessionVersion.current === requestVersion) {
+      if (workspaceVersion.current === requestVersion) {
         setIsLoadingDocuments(false);
       }
     }
   }, []);
 
   useEffect(() => {
-    if (!authInitialized || !token) return;
     const refreshTimer = window.setTimeout(() => {
       void refreshDocuments();
     }, 0);
     return () => window.clearTimeout(refreshTimer);
-  }, [authInitialized, refreshDocuments, token]);
+  }, [refreshDocuments]);
 
   const clearDocumentView = () => {
     activeDocumentId.current = null;
@@ -181,27 +96,7 @@ export default function Home() {
     setMessages([]);
     setWorkspaceError("");
     setIsLoadingDocument(false);
-  };
-
-  const handleAuthenticated = (accessToken: string) => {
-    sessionVersion.current += 1;
-    setStoredToken(accessToken);
-    setToken(accessToken);
-  };
-
-  const handleLogout = () => {
-    sessionVersion.current += 1;
-    clearStoredToken();
-    setToken(null);
-    setIsAdmin(false);
-    setAdminStatusError("");
-    setDocuments([]);
-    clearDocumentView();
-    setSidebarError("");
-    setIsLoadingDocuments(false);
-    setIsLoadingDocument(false);
-    setIsSummarizing(false);
-    setIsAsking(false);
+    workspaceVersion.current += 1;
   };
 
   const handleNewPdf = () => {
@@ -214,7 +109,7 @@ export default function Home() {
   };
 
   const loadDocument = async (documentId: number) => {
-    const requestVersion = sessionVersion.current;
+    const requestVersion = workspaceVersion.current;
     activeDocumentId.current = documentId;
     setSelectedDocumentId(documentId);
     setSelectedFile(null);
@@ -236,7 +131,7 @@ export default function Home() {
       const document =
         (await response.json()) as SavedDocumentResponse;
       if (
-        sessionVersion.current === requestVersion &&
+        workspaceVersion.current === requestVersion &&
         activeDocumentId.current === documentId
       ) {
         setSummaryData(document.summary);
@@ -244,7 +139,7 @@ export default function Home() {
       }
     } catch (error: unknown) {
       if (
-        sessionVersion.current === requestVersion &&
+        workspaceVersion.current === requestVersion &&
         activeDocumentId.current === documentId
       ) {
         setWorkspaceError(
@@ -253,7 +148,7 @@ export default function Home() {
       }
     } finally {
       if (
-        sessionVersion.current === requestVersion &&
+        workspaceVersion.current === requestVersion &&
         activeDocumentId.current === documentId
       ) {
         setIsLoadingDocument(false);
@@ -264,7 +159,7 @@ export default function Home() {
   const handleSummarize = async () => {
     if (!selectedFile) return;
 
-    const requestVersion = sessionVersion.current;
+    const requestVersion = workspaceVersion.current;
     setIsSummarizing(true);
     setWorkspaceError("");
 
@@ -284,7 +179,7 @@ export default function Home() {
           ),
         );
       }
-      if (sessionVersion.current !== requestVersion) return;
+      if (workspaceVersion.current !== requestVersion) return;
 
       const summary = (await response.json()) as SummaryData & {
         document_id: number;
@@ -295,7 +190,7 @@ export default function Home() {
         loadDocument(summary.document_id),
       ]);
     } catch (error: unknown) {
-      if (sessionVersion.current === requestVersion) {
+      if (workspaceVersion.current === requestVersion) {
         setWorkspaceError(
           error instanceof Error
             ? error.message
@@ -303,7 +198,7 @@ export default function Home() {
         );
       }
     } finally {
-      if (sessionVersion.current === requestVersion) {
+      if (workspaceVersion.current === requestVersion) {
         setIsSummarizing(false);
       }
     }
@@ -315,7 +210,7 @@ export default function Home() {
     }
 
     const formData = new FormData();
-    const requestVersion = sessionVersion.current;
+    const requestVersion = workspaceVersion.current;
     formData.append("document_id", String(selectedDocumentId));
     formData.append("question", question);
 
@@ -331,7 +226,7 @@ export default function Home() {
 
     const result: { answer: string } = await response.json();
     if (
-      sessionVersion.current !== requestVersion ||
+      workspaceVersion.current !== requestVersion ||
       selectedDocumentId !== Number(formData.get("document_id"))
     ) {
       return "";
@@ -348,7 +243,7 @@ export default function Home() {
   const handleDeleteDocument = async (documentId: number) => {
     if (!window.confirm("Delete this PDF and its chat history?")) return;
 
-    const requestVersion = sessionVersion.current;
+    const requestVersion = workspaceVersion.current;
     setDeletingDocumentId(documentId);
     setSidebarError("");
     try {
@@ -360,36 +255,24 @@ export default function Home() {
           await getApiErrorMessage(response, "Failed to delete this PDF."),
         );
       }
-      if (sessionVersion.current !== requestVersion) return;
+      if (workspaceVersion.current !== requestVersion) return;
 
       if (selectedDocumentId === documentId) {
         clearDocumentView();
       }
       await refreshDocuments();
     } catch (error: unknown) {
-      if (sessionVersion.current === requestVersion) {
+      if (workspaceVersion.current === requestVersion) {
         setSidebarError(
           error instanceof Error ? error.message : "Failed to delete this PDF.",
         );
       }
     } finally {
-      if (sessionVersion.current === requestVersion) {
+      if (workspaceVersion.current === requestVersion) {
         setDeletingDocumentId(null);
       }
     }
   };
-
-  if (!authInitialized) {
-    return (
-      <main className="flex min-h-screen items-center justify-center text-sm text-gray-500">
-        Loading...
-      </main>
-    );
-  }
-
-  if (!token) {
-    return <AuthForm onAuthenticated={handleAuthenticated} />;
-  }
 
   const isBusy =
     isLoadingDocuments ||
@@ -411,28 +294,12 @@ export default function Home() {
         onNewPdf={handleNewPdf}
         onSelectDocument={(documentId) => void loadDocument(documentId)}
         onDeleteDocument={handleDeleteDocument}
-        onLogout={handleLogout}
       />
 
       <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-8 sm:px-6 lg:px-8">
         <h1 className="mb-8 text-center text-3xl font-bold text-gray-900">
           AI Document Assistant
         </h1>
-        {isAdmin && (
-          <div className="mb-6 text-right">
-            <Link
-              href="/admin"
-              className="inline-flex rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
-            >
-              Admin page
-            </Link>
-          </div>
-        )}
-        {adminStatusError && (
-          <p role="alert" className="mb-6 text-sm text-red-700">
-            {adminStatusError}
-          </p>
-        )}
 
         <div className="space-y-8">
           <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">

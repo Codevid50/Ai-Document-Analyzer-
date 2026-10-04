@@ -18,7 +18,7 @@ from app.ai_service import (
 )
 from app.models import SummaryResponse, AskResponse
 from app.pdf_service import extract_text, chunk_text
-from app.auth import get_current_user, router as auth_router
+from app.auth import router as auth_router
 from app.admin import router as admin_router
 from app.db import (
     Document,
@@ -29,6 +29,7 @@ from app.db import (
     get_or_create_document,
     get_recent_messages,
 )
+from app.visitors import get_visitor_user
 
 
 app = FastAPI(
@@ -121,7 +122,7 @@ def _get_or_create_request_document(
 async def upload_pdf(
     file: UploadFile = File(...),
     session: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_visitor_user),
 ):
 
     if file.content_type != "application/pdf":
@@ -171,7 +172,7 @@ def summarize_pdf(
     file: UploadFile | None = File(None),
     document_id: int | None = Form(None),
     session: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_visitor_user),
 ):
     document, text = _get_or_create_request_document(
         file,
@@ -267,7 +268,7 @@ def ask_pdf_question(
     document_id: int | None = Form(None),
     question: str = Form(""),
     session: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_visitor_user),
 ):
     if not question.strip():
         raise HTTPException(
@@ -360,7 +361,7 @@ def ask_pdf_question(
 def get_document_messages(
     document_id: int,
     session: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_visitor_user),
 ):
     document = session.scalar(
         select(Document).where(
@@ -396,7 +397,7 @@ def get_document_messages(
 @app.get("/documents")
 def list_documents(
     session: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_visitor_user),
 ):
     documents = session.scalars(
         select(Document)
@@ -418,7 +419,7 @@ def list_documents(
 def delete_document(
     document_id: int,
     session: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_visitor_user),
 ):
     document = session.scalar(
         select(Document).where(
