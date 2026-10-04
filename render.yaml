@@ -13,4 +13,4 @@ services:
       - key: OPENROUTER_API_KEY
         sync: false
       - key: CORS_ORIGINS
-        value: http://localhost:3000
+        value: http://localhost:3000,https://ai-document-analyzer-k9jh.onrender.com

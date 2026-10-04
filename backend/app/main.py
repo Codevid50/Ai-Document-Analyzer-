@@ -38,11 +38,19 @@ app = FastAPI(
 app.include_router(auth_router)
 app.include_router(admin_router)
 
-allowed_origins = [
+configured_origins = [
     origin.strip()
     for origin in os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
     if origin.strip()
 ]
+allowed_origins = list(
+    dict.fromkeys(
+        [
+            *configured_origins,
+            "https://ai-document-analyzer-k9jh.onrender.com",
+        ]
+    )
+)
 
 app.add_middleware(
     CORSMiddleware,

@@ -166,3 +166,19 @@ def test_documents_use_anonymous_visitor_workspaces(client):
         "/documents",
         headers={"X-Visitor-ID": "not-a-uuid"},
     ).status_code == 400
+
+
+def test_render_frontend_origin_is_allowed_by_cors(client):
+    response = client.options(
+        "/summarize",
+        headers={
+            "Origin": "https://ai-document-analyzer-k9jh.onrender.com",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type,x-visitor-id",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == (
+        "https://ai-document-analyzer-k9jh.onrender.com"
+    )

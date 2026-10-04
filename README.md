@@ -54,13 +54,12 @@ repository root so Vercel detects the Next.js app.
 Add the environment variable `NEXT_PUBLIC_API_URL` with the Render service URL
 (no trailing slash), then deploy.
 
-### 4. Allow the Vercel site to call the API
+### 4. Allow the frontend site to call the API
 
-In Render, update `CORS_ORIGINS` to the exact Vercel production origin, for
-example `https://your-project.vercel.app`. For multiple trusted origins, use
-comma-separated URLs. Do not include paths or trailing slashes. Save the
-environment variable and redeploy the API if Render does not deploy it
-automatically.
+The Render blueprint includes the production frontend origin and localhost in
+`CORS_ORIGINS`. If the frontend is deployed to a different domain, update the
+variable in Render to include its exact origin. For multiple trusted origins,
+use comma-separated URLs. Do not include paths or trailing slashes.
 
 If you change `NEXT_PUBLIC_API_URL` in Vercel, redeploy the frontend because
 Next.js embeds this public variable during the build.
